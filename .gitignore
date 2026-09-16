@@ -1,0 +1,33 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets - never commit
+secrets.json
+
+# Personal data & runtime data
+profile.json
+Resume*.pdf
+data/
+logs/
+
+# Browser automation sessions & artifacts - never commit
+.browser_profile/
+screenshots/
+dom_dump.txt
+login_log.txt
+
+# Run capture files
+*_out.txt
+*_err.txt
+
+# Old post exports (regenerable)
+recruiter_posts_*.csv
+recruiter_posts_*.json

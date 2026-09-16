@@ -1,0 +1,20 @@
+[project]
+name = "jobs-scraper"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "manas-swain-001", email = "manas.swain247@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "google-genai>=2.23.0",
+    "playwright>=1.62.0",
+]
+
+[project.scripts]
+jobs-scraper = "jobs_scraper.run_cycle:main"
+
+[build-system]
+requires = ["uv_build>=0.12.7,<0.13.0"]
+build-backend = "uv_build"
