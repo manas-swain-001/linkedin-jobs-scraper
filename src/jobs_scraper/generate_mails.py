@@ -539,8 +539,8 @@ def main() -> None:
             storage.log(f"SKIPPED {post['author']} | reason: {reason}")
             continue
 
-        email_target = (post.get("emails") or [""])[0]
-        if not email_target:
+        email_targets = storage.clean_emails(post.get("emails"))
+        if not email_targets:
             record["status"] = "SKIPPED"
             record["skip_reason"] = "missing: email"
             record["post_id"] = pid
@@ -549,6 +549,19 @@ def main() -> None:
                              "no email found in post (phone-only)",
                              action="find the email manually (LinkedIn/company site) and add it to the post record to retry")
             storage.log(f"SKIPPED {post['author']}: no email (phone-only listed).")
+            continue
+
+        known_emails = set(storage.load_contacts()["emails"])
+        email_target = next((e for e in email_targets if e not in known_emails), "")
+        if not email_target:
+            record["status"] = "SKIPPED"
+            record["skip_reason"] = "already_contacted"
+            record["post_id"] = pid
+            record.pop("mail_file", None)
+            storage.log_skip(post, storage.SKIP_CATEGORY_OTHER,
+                             f"already contacted {email_targets[0]}",
+                             action="this email was already approached in an earlier run")
+            storage.log(f"SKIPPED {post['author']} | reason: already contacted ({', '.join(email_targets)})")
             continue
 
         filename = outputs_dir / f"{pid}.txt"
@@ -562,6 +575,8 @@ def main() -> None:
         record["generated_at"] = _now()
         record.pop("skip_reason", None)
         generated_count += 1
+
+        storage.register_contacts([email_target], post.get("phones") or [])
 
         storage.log(f"GENERATED [{generated_count}] {post['author']} -> {email_target}")
         safe_subject = subject.encode("ascii", "ignore").decode("ascii")

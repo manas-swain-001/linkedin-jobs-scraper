@@ -43,8 +43,8 @@ uv run python -m jobs_scraper.run_cycle --mode live
 ## Optional Flags
 
 ```bash
-# Change delay between mails (default 120 seconds)
-uv run python -m jobs_scraper.run_cycle --mode live --interval 180
+# Change delay between mails (default 60 seconds)
+uv run python -m jobs_scraper.run_cycle --mode live --interval 90
 
 # Combine dry-run + custom recipient
 uv run python -m jobs_scraper.run_cycle --mode dry-run --to myselfmanaskumar01@gmail.com --interval 30
@@ -54,7 +54,7 @@ uv run python -m jobs_scraper.run_cycle --mode dry-run --to myselfmanaskumar01@g
 |------|---------|-------------|
 | `--mode` | `live` | `skip` / `preview` / `dry-run` / `live` |
 | `--to` | *(none)* | Override recipient (dry-run only) |
-| `--interval` | `120` | Seconds between each mail sent |
+| `--interval` | `60` | Seconds between each mail sent |
 
 ---
 
@@ -110,7 +110,7 @@ uv run python -m jobs_scraper.run_cycle --mode live
 |-------|----------|
 | Scrape (scroll LinkedIn) | Up to **30 min** |
 | Generate mails (Gemini LLM) | ~**3-5 sec** per post |
-| Send mails (SMTP + PDF attach) | **120 sec** between each (configurable) |
+| Send mails (SMTP + PDF attach) | **60 sec** between each (configurable) |
 
 ---
 

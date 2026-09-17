@@ -1,3 +1,4 @@
+import argparse
 import difflib
 import hashlib
 import json
@@ -18,7 +19,7 @@ from jobs_scraper.filters import is_job_seeker_post
 POST_CARD = 'div[role="listitem"][componentkey*="FLAGSHIP_SEARCH"]'
 MAX_SCROLLS = 400  # hard safety cap; the 30-min timer is the real limit
 RUN_DURATION_MINUTES = 30
-MAX_POSTS = 100  # cap: never collect more than this many posts per run
+MAX_POSTS = 200  # cap: never collect more than this many posts per run
 REPOST_SIM_MIN = 0.88  # if new post content is ~>=88% similar to an already-collected post for the same contact, treat as repost
 EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+", re.IGNORECASE)
 PHONE_RE = re.compile(
@@ -39,14 +40,58 @@ def _similar(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def extract_card(card) -> dict | None:
+def _post_image_urls(card) -> list[str]:
+    """Large images belonging to the post body (excludes small profile avatars / icons)."""
+    try:
+        imgs = card.locator("img").evaluate_all(
+            "els => els.map(e => ({ src: e.currentSrc || e.src || '', w: e.clientWidth || 0, h: e.clientHeight || 0 }))"
+        )
+    except Exception:
+        return []
+    urls = []
+    for img in imgs:
+        src = img.get("src") or ""
+        if not src.startswith("http"):
+            continue
+        if "profile-displayphoto" in src or "ghost" in src.lower():
+            continue
+        if (img.get("w") or 0) < 200 and (img.get("h") or 0) < 200:
+            continue
+        urls.append(src)
+    return urls
+
+
+def extract_card(card, request=None, do_ocr=False) -> dict | None:
     content_span = card.locator('span[data-testid="expandable-text-box"]')
     content = ""
     if content_span.count():
         content = content_span.first.evaluate("el => el.textContent") or ""
     content = re.sub(r"\s*[….]+\s*more\s*$", "", content, flags=re.IGNORECASE).strip()
-    if not content:
-        return None
+
+    ocr_text = ""
+    image_urls = []
+    if do_ocr:
+        try:
+            from jobs_scraper import ocr as ocr_mod
+        except Exception:
+            ocr_mod = None
+        if request is not None and ocr_mod is not None:
+            image_urls = _post_image_urls(card)
+            ocr_parts = []
+            for url in image_urls:
+                try:
+                    resp = request.get(url)
+                    if resp.ok:
+                        text = ocr_mod.ocr_image_bytes(resp.body())
+                        if text:
+                            ocr_parts.append(text)
+                except Exception:
+                    continue
+            ocr_text = " | ".join(ocr_parts)
+
+    source = content
+    if ocr_text:
+        source = f"{content}\n[Image text] {ocr_text}" if content else f"[Image text] {ocr_text}"
 
     emails = []
     mailto_links = card.locator('a[href^="mailto:"]')
@@ -55,12 +100,13 @@ def extract_card(card) -> dict | None:
         addr = href.replace("mailto:", "").split("?")[0].strip()
         if EMAIL_RE.fullmatch(addr):
             emails.append(addr)
-    for m in EMAIL_RE.finditer(content):
+    for m in EMAIL_RE.finditer(source):
         if m.group(0) not in emails:
             emails.append(m.group(0))
+    emails = storage.clean_emails(emails)
 
     phones = []
-    for m in PHONE_RE.finditer(content):
+    for m in PHONE_RE.finditer(source):
         candidate = m.group(0)
         candidate = re.sub(r"[^0-9+]", "", candidate)
         if candidate not in phones:
@@ -91,13 +137,21 @@ def extract_card(card) -> dict | None:
         "author": author_name,
         "author_url": author_url,
         "time_posted": ts,
-        "content": content,
+        "content": source,
+        "ocr_text": ocr_text,
+        "image_urls": image_urls,
         "emails": emails,
         "phones": phones,
     }
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Scrape LinkedIn recruiter posts.")
+    parser.add_argument("--ocr", dest="ocr", action="store_true", default=True,
+                        help="OCR images in posts to catch emails/phones inside images (default: on)")
+    parser.add_argument("--no-ocr", dest="ocr", action="store_false", help="Disable image OCR")
+    args = parser.parse_args()
+
     deadline = time.time() + RUN_DURATION_MINUTES * 60
     storage.log("=== SCRAPE RUN START ===")
 
@@ -135,7 +189,7 @@ def main() -> None:
 
                 data = None
                 try:
-                    data = extract_card(card)
+                    data = extract_card(card, request=context.request, do_ocr=args.ocr)
                 except Exception as exc:
                     storage.log(f"extract error card {i}: {exc}")
                     continue
@@ -183,6 +237,8 @@ def main() -> None:
                     "author_url": data["author_url"],
                     "time_posted": data["time_posted"],
                     "content": data["content"],
+                    "ocr_text": data.get("ocr_text", ""),
+                    "image_urls": data.get("image_urls", []),
                     "emails": data["emails"],
                     "phones": data["phones"],
                     "scraped_at": datetime.now().isoformat(timespec="seconds"),

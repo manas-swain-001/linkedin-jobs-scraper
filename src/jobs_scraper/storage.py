@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -38,6 +39,68 @@ def _save(path: Path, data) -> None:
     with tmp.open("w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     tmp.replace(path)
+
+
+# ---------------------------------------------------------------- emails
+_EMAIL_LOCAL = r"[A-Za-z0-9!#$%&'*+/=?^_`{|}~.-]+"
+_EMAIL_DOMAIN = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+_STRICT_EMAIL_RE = re.compile(
+    rf"^{_EMAIL_LOCAL}@(?:(?:{_EMAIL_DOMAIN})\.)+(?P<tld>[a-z]{{2,6}})$"
+)
+_FIND_CAND_RE = re.compile(rf"{_EMAIL_LOCAL}@[A-Za-z0-9.\-]+")
+_STRICT_EMAIL_TLD_RE = re.compile(
+    rf"^{_EMAIL_LOCAL}@(?:(?:{_EMAIL_DOMAIN})\.)+(?:com|org|net|in|io|co|ai|dev|app|tech|"
+    rf"me|info|biz|edu|uk|us|ca|au|de|fr|xyz|online)$"
+)
+# phone numbers glued to the front of an address (e.g. "+919024226200john@x.com")
+_PHONE_LOCAL_RE = re.compile(r"^\+\d{10,}")
+
+
+def clean_email(raw: str) -> str:
+    """Normalize/validate one email; returns '' when it is unusable.
+
+    Fixes OCR/mailto artifacts such as trailing words glued to the address
+    ('x@gmail.comKnow') and rejects non-ASCII junk (mojibake, phone glue).
+    """
+    if not raw:
+        return ""
+    s = str(raw).strip()
+    if not _STRICT_EMAIL_RE.match(s):
+        lower = s.lower()
+        if _STRICT_EMAIL_RE.match(lower):
+            s = lower
+        else:
+            m = _FIND_CAND_RE.search(s)
+            if not m:
+                return ""
+            cand = m.group(0)
+            hit = ""
+            for j in range(len(cand), 0, -1):
+                p = cand[:j]
+                if _STRICT_EMAIL_RE.fullmatch(p):
+                    hit = p
+                    break
+            if not hit:
+                for j in range(len(cand), 0, -1):
+                    p = cand[:j].lower()
+                    if _STRICT_EMAIL_TLD_RE.fullmatch(p):
+                        hit = p
+                        break
+            if not hit:
+                return ""
+            s = hit
+    if _PHONE_LOCAL_RE.match(s.split("@")[0]):
+        return ""
+    return s
+
+
+def clean_emails(emails) -> list:
+    out = []
+    for e in emails or []:
+        c = clean_email(e or "")
+        if c and c not in out:
+            out.append(c)
+    return out
 
 
 # ---------------------------------------------------------------- contacts

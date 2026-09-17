@@ -11,7 +11,7 @@ from email.mime.application import MIMEApplication
 
 from jobs_scraper import storage
 
-SEND_INTERVAL_SECONDS = 120  # 2 minutes between live/dry-run sends
+SEND_INTERVAL_SECONDS = 60  # 1 minute between live/dry-run sends
 RESUME_PATTERNS = ["Resume*.pdf", "resume*.pdf", "CV*.pdf", "cv*.pdf"]
 
 
@@ -64,7 +64,7 @@ def main() -> None:
     parser.add_argument("--mode", choices=["preview", "dry-run", "live"], default="preview")
     parser.add_argument("--to", default="", help="Override recipient (for dry-run testing only)")
     parser.add_argument("--interval", type=int, default=SEND_INTERVAL_SECONDS,
-                        help="Seconds between mails (default 120)")
+                        help="Seconds between mails (default 60)")
     args = parser.parse_args()
 
     secrets = load_secrets()

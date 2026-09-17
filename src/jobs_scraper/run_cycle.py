@@ -23,7 +23,7 @@ def run_cycle(send_mode: str, send_interval: int, send_to: str = "") -> None:
     if pending:
         _run("jobs_scraper.generate_mails")
     else:
-        storage.log("No pending posts. Scraping LinkedIn (max 30 min OR 100 jobs, whichever comes first)...")
+        storage.log("No pending posts. Scraping LinkedIn (max 30 min OR 200 jobs, whichever comes first)...")
         _run("jobs_scraper.scrape_posts")
         _run("jobs_scraper.generate_mails")
 
@@ -53,8 +53,8 @@ def main() -> None:
     parser.add_argument(
         "--interval",
         type=int,
-        default=120,
-        help="Seconds between sent mails (default 120)",
+        default=60,
+        help="Seconds between sent mails (default 60)",
     )
     args = parser.parse_args()
 
